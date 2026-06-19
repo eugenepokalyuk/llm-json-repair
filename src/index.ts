@@ -12,6 +12,7 @@ export type {
   RepairError,
   RepairErrorCode,
   RepairOk,
+  RepairOptions,
   RepairResult,
 } from "./types.js";
 export { JsonRepairError } from "./types.js";

@@ -1,5 +1,20 @@
 import type { StandardSchemaV1 } from "./standard-schema.js";
 
+/** Tunables for the repairing parser. All fields are optional. */
+export interface RepairOptions {
+  /**
+   * Maximum nesting depth before the parser bails out with a `parse_error`
+   * instead of overflowing the call stack. Defaults to `512`.
+   */
+  readonly maxDepth?: number;
+  /**
+   * Parse integers that exceed `Number.MAX_SAFE_INTEGER` as `bigint` instead
+   * of letting them lose precision. Defaults to `false`. Note: `bigint` values
+   * are not JSON-serializable, so avoid this with {@link repairToString}.
+   */
+  readonly bigint?: boolean;
+}
+
 /** Discriminated result returned by {@link repairJson} / {@link repairJsonAsync}. */
 export type RepairResult<T> = RepairOk<T> | RepairErr;
 

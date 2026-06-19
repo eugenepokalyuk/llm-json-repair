@@ -69,7 +69,13 @@ function assignKey(obj: Record<string, unknown>, key: string, value: unknown): v
  */
 const JSON_NUMBER = /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/;
 
-function interpretLiteral(raw: string): unknown {
+/** An integer literal that `Number` cannot represent without losing precision. */
+function isUnsafeInteger(raw: string): boolean {
+  if (raw.includes(".") || raw.includes("e") || raw.includes("E")) return false;
+  return !Number.isSafeInteger(Number(raw));
+}
+
+function interpretLiteral(raw: string, bigint: boolean): unknown {
   if (raw === "") return null;
   switch (raw) {
     case "true":
@@ -93,7 +99,10 @@ function interpretLiteral(raw: string): unknown {
     case "infinity":
       return null;
   }
-  if (JSON_NUMBER.test(raw)) return Number(raw);
+  if (JSON_NUMBER.test(raw)) {
+    if (bigint && isUnsafeInteger(raw)) return BigInt(raw);
+    return Number(raw);
+  }
   // Unrecognized bareword (incl. hex/octal/leading-zero forms): keep the
   // literal text rather than coercing it to a surprising number.
   return raw;
@@ -121,11 +130,13 @@ class TolerantParser {
   private readonly s: string;
   private readonly len: number;
   private readonly maxDepth: number;
+  private readonly bigint: boolean;
 
-  constructor(source: string, maxDepth = DEFAULT_MAX_DEPTH) {
+  constructor(source: string, options: ParseOptions = {}) {
     this.s = source;
     this.len = source.length;
-    this.maxDepth = maxDepth;
+    this.maxDepth = options.maxDepth ?? DEFAULT_MAX_DEPTH;
+    this.bigint = options.bigint ?? false;
   }
 
   private enter(): void {
@@ -356,7 +367,7 @@ class TolerantParser {
       }
       this.i++;
     }
-    return interpretLiteral(this.s.slice(start, this.i).trim());
+    return interpretLiteral(this.s.slice(start, this.i).trim(), this.bigint);
   }
 }
 
@@ -372,11 +383,17 @@ function stripFences(input: string): string {
   return input;
 }
 
+/** Options accepted by the low-level {@link tolerantParse}. */
+export interface ParseOptions {
+  readonly maxDepth?: number;
+  readonly bigint?: boolean;
+}
+
 /**
  * Parse messy, almost-JSON text into a JavaScript value, repairing common
  * problems along the way. Throws {@link SyntaxError} only when no JSON value
  * can be found at all.
  */
-export function tolerantParse(input: string): unknown {
-  return new TolerantParser(stripFences(input)).parse();
+export function tolerantParse(input: string, options?: ParseOptions): unknown {
+  return new TolerantParser(stripFences(input), options).parse();
 }

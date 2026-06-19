@@ -198,6 +198,41 @@ describe("repairJson — schema validation", () => {
   });
 });
 
+describe("repairJson — options", () => {
+  it("accepts options as the second argument (no schema)", () => {
+    // Unclosed brackets force the tolerant (repair) path, where maxDepth lives.
+    const input = "[".repeat(50);
+    const tooDeep = repairJson(input, { maxDepth: 10 });
+    expect(tooDeep.ok).toBe(false);
+    if (!tooDeep.ok) expect(tooDeep.error.code).toBe("parse_error");
+
+    const okDepth = repairJson(input, { maxDepth: 100 });
+    expect(okDepth.ok).toBe(true);
+  });
+
+  it("accepts options as the third argument alongside a schema", () => {
+    const User = z.object({ name: z.string() });
+    const r = repairJson('{name:"Ada",}', User, { maxDepth: 100 });
+    expect(r).toMatchObject({ ok: true, value: { name: "Ada" } });
+  });
+
+  it("parses precision-losing integers as bigint when asked", () => {
+    const r = repairJson('{"id": 12345678901234567890}', { bigint: true });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      const value = r.value as { id: bigint };
+      expect(typeof value.id).toBe("bigint");
+      expect(value.id).toBe(12345678901234567890n);
+    }
+  });
+
+  it("leaves safe integers as plain numbers even with bigint enabled", () => {
+    const r = repairJson('{"n": 42}', { bigint: true });
+    expect(r).toMatchObject({ ok: true, value: { n: 42 } });
+    if (r.ok) expect(typeof (r.value as { n: unknown }).n).toBe("number");
+  });
+});
+
 describe("repairJsonAsync", () => {
   it("works with async refinements", async () => {
     const schema = z.string().refine(async (v) => v.length > 1, "too short");
