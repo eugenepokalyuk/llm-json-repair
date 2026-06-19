@@ -36,7 +36,7 @@ There's also a [CLI](#cli) for piping JSON through the repairer from a shell.
 npm install llm-json-repair
 ```
 
-`node >= 18`. No runtime dependencies — bring your own [Standard Schema](https://standardschema.dev)
+`node >= 20`. No runtime dependencies — bring your own [Standard Schema](https://standardschema.dev)
 validator (Zod, Valibot, ArkType, …) only if you want validation
 
 ## Quick start
