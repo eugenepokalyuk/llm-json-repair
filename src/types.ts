@@ -18,6 +18,27 @@ export interface RepairOptions {
 /** Discriminated result returned by {@link repairJson} / {@link repairJsonAsync}. */
 export type RepairResult<T> = RepairOk<T> | RepairErr;
 
+/**
+ * Incremental parser for JSON that arrives in pieces — typically a streaming
+ * LLM response. Feed it chunks as they land; each call returns the best-effort
+ * value parsed from everything seen so far, with truncated structures closed.
+ */
+export interface RepairStream<T> {
+  /**
+   * Append a chunk and return the best-effort value for the buffer so far.
+   * No schema validation runs here (the data is usually still incomplete) —
+   * the typed value is a best-effort projection. Use {@link RepairStream.end}
+   * for the final, validated result.
+   */
+  push(chunk: string): RepairResult<T>;
+  /** Re-parse the current buffer without appending anything. */
+  current(): RepairResult<T>;
+  /** Finalize: parse and (if a schema was provided) validate the full buffer. */
+  end(): RepairResult<T>;
+  /** All raw text accumulated so far. */
+  readonly buffer: string;
+}
+
 export interface RepairOk<T> {
   readonly ok: true;
   /** The parsed (and schema-validated, if a schema was given) value. */

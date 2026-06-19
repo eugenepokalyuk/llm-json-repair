@@ -4,7 +4,9 @@ import {
   JsonRepairError,
   repairJson,
   repairJsonAsync,
+  repairJsonFromStream,
   repairJsonOrThrow,
+  repairJsonStream,
   repairToString,
 } from "../src/index.js";
 
@@ -230,6 +232,52 @@ describe("repairJson — options", () => {
     const r = repairJson('{"n": 42}', { bigint: true });
     expect(r).toMatchObject({ ok: true, value: { n: 42 } });
     if (r.ok) expect(typeof (r.value as { n: unknown }).n).toBe("number");
+  });
+});
+
+describe("repairJsonStream", () => {
+  const User = z.object({ name: z.string(), age: z.number() });
+
+  it("yields a best-effort value as chunks arrive and validates on end()", () => {
+    const stream = repairJsonStream(User);
+    const chunks = ['{"name": "Ad', 'a", "ag', 'e": 3', "6}"];
+
+    const partials = chunks.map((c) => stream.push(c));
+    // Every partial should be a parseable (best-effort) object…
+    for (const p of partials) expect(p.ok).toBe(true);
+    // …and the buffer reflects everything seen.
+    expect(stream.buffer).toBe('{"name": "Ada", "age": 36}');
+
+    const final = stream.end();
+    expect(final).toMatchObject({ ok: true, value: { name: "Ada", age: 36 } });
+  });
+
+  it("exposes the partial object mid-stream", () => {
+    const stream = repairJsonStream();
+    const r = stream.push('{"items": [1, 2');
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value).toMatchObject({ items: [1, 2] });
+  });
+
+  it("works without a schema", () => {
+    const stream = repairJsonStream();
+    stream.push('{"a":1');
+    expect(stream.end()).toMatchObject({ ok: true, value: { a: 1 } });
+  });
+
+  it("repairJsonFromStream drains an async iterable and reports partials", async () => {
+    async function* gen() {
+      yield '{"name": "Ada"';
+      yield ', "age": 36}';
+    }
+    const seen: number[] = [];
+    const final = await repairJsonFromStream(gen(), User, {
+      onPartial: (p) => {
+        if (p.ok) seen.push(1);
+      },
+    });
+    expect(final).toMatchObject({ ok: true, value: { name: "Ada", age: 36 } });
+    expect(seen.length).toBe(2);
   });
 });
 

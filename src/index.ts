@@ -7,6 +7,7 @@ export {
   repairToString,
 } from "./repair.js";
 export type { StandardSchemaV1 } from "./standard-schema.js";
+export { repairJsonFromStream, repairJsonStream } from "./stream.js";
 export type {
   RepairErr,
   RepairError,
@@ -14,5 +15,6 @@ export type {
   RepairOk,
   RepairOptions,
   RepairResult,
+  RepairStream,
 } from "./types.js";
 export { JsonRepairError } from "./types.js";
