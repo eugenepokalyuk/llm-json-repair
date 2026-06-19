@@ -12,7 +12,26 @@
       "preset": "recommended"
     }
   },
+  "assist": {
+    "enabled": true,
+    "actions": {
+      "source": {
+        "organizeImports": {
+          "level": "on",
+          "options": {
+            "groups": [
+              [":NODE:", ":BUN:", ":PACKAGE:"],
+              ":BLANK_LINE:",
+              ":ALIAS:",
+              ":BLANK_LINE:",
+              ":PATH:"
+            ]
+          }
+        }
+      }
+    }
+  },
   "files": {
-    "includes": ["src/**", "test/**", "*.ts"]
+    "includes": ["src/**", "test/**", "bench/**", "*.ts"]
   }
 }

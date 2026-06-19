@@ -1,5 +1,6 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
+
 import { repairJson, repairJsonStream } from "../src/index.js";
 
 describe("fuzz / properties", () => {

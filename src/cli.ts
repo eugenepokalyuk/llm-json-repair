@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { readFileSync } from "node:fs";
+
 import { repairJson } from "./repair.js";
 import { JsonRepairError } from "./types.js";
 

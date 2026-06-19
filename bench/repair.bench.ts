@@ -1,5 +1,6 @@
 import { jsonrepair } from "jsonrepair";
 import { bench, describe } from "vitest";
+
 import { repairJson } from "../src/index.js";
 
 // Representative LLM-ish payloads.
