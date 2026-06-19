@@ -1,7 +1,7 @@
 {
-  "name": "heal-json",
+  "name": "llm-json-repair",
   "version": "0.1.0",
-  "description": "Repair and validate messy JSON from LLMs and other untrusted sources — type-safe, zero-dependency, Standard Schema compatible.",
+  "description": "Repair and parse broken JSON from LLM output (OpenAI, Claude, …) — fixes code fences, trailing commas, and truncated streams, then validates against your schema. Type-safe, zero-dependency, Standard Schema compatible",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -33,14 +33,20 @@
   "keywords": [
     "json",
     "repair",
+    "json-repair",
     "parse",
+    "json-parser",
     "llm",
+    "llm-json",
     "ai",
     "openai",
     "anthropic",
     "claude",
     "gpt",
     "structured-output",
+    "tool-calling",
+    "truncated-json",
+    "partial-json",
     "validation",
     "zod",
     "standard-schema",
@@ -48,16 +54,16 @@
     "fix",
     "typescript"
   ],
-  "author": "",
+  "author": "Evgenii Pokalyuk",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/eugene-pokalyuk/heal-json.git"
+    "url": "git+https://github.com/eugenepokalyuk/llm-json-repair.git"
   },
   "bugs": {
-    "url": "https://github.com/eugene-pokalyuk/heal-json/issues"
+    "url": "https://github.com/eugenepokalyuk/llm-json-repair/issues"
   },
-  "homepage": "https://github.com/eugene-pokalyuk/heal-json#readme",
+  "homepage": "https://github.com/eugenepokalyuk/llm-json-repair#readme",
   "devDependencies": {
     "@biomejs/biome": "^2.5.0",
     "@vitest/coverage-v8": "^4.1.9",

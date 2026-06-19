@@ -1,6 +1,6 @@
 import { tolerantParse } from "./parser.js";
 import type { StandardSchemaV1 } from "./standard-schema.js";
-import { type HealErr, type HealError, HealJsonError, type HealResult } from "./types.js";
+import { JsonRepairError, type RepairErr, type RepairError, type RepairResult } from "./types.js";
 
 class EmptyInputError extends Error {}
 
@@ -24,15 +24,15 @@ function toValue(input: string): Parsed {
   }
 }
 
-function ok<T>(value: T, repaired: boolean): HealResult<T> {
+function ok<T>(value: T, repaired: boolean): RepairResult<T> {
   return { ok: true, value, repaired };
 }
 
-function fail(error: HealError): HealErr {
+function fail(error: RepairError): RepairErr {
   return { ok: false, error };
 }
 
-function toParsed(input: string): Parsed | HealErr {
+function toParsed(input: string): Parsed | RepairErr {
   try {
     return toValue(input);
   } catch (cause) {
@@ -47,7 +47,7 @@ function toParsed(input: string): Parsed | HealErr {
   }
 }
 
-function validationFailure(issues: ReadonlyArray<StandardSchemaV1.Issue>): HealErr {
+function validationFailure(issues: ReadonlyArray<StandardSchemaV1.Issue>): RepairErr {
   const first = issues[0];
   return fail({
     code: "validation_error",
@@ -57,20 +57,20 @@ function validationFailure(issues: ReadonlyArray<StandardSchemaV1.Issue>): HealE
 }
 
 /**
- * Repair messy JSON (LLM output, truncated streams, hand-written config) and,
+ * Repair broken JSON (LLM output, truncated streams, hand-written config) and,
  * optionally, validate it against a Standard Schema validator (Zod, Valibot,
  * ArkType, …). Never throws — failures come back as `{ ok: false, error }`.
  *
  * @example
- * const r = heal('```json\n{ name: "Ada", admin: true, }\n```');
+ * const r = repairJson('```json\n{ name: "Ada", admin: true, }\n```');
  * if (r.ok) console.log(r.value); // { name: "Ada", admin: true }
  */
-export function heal(input: string): HealResult<unknown>;
-export function heal<Schema extends StandardSchemaV1>(
+export function repairJson(input: string): RepairResult<unknown>;
+export function repairJson<Schema extends StandardSchemaV1>(
   input: string,
   schema: Schema,
-): HealResult<StandardSchemaV1.InferOutput<Schema>>;
-export function heal(input: string, schema?: StandardSchemaV1): HealResult<unknown> {
+): RepairResult<StandardSchemaV1.InferOutput<Schema>>;
+export function repairJson(input: string, schema?: StandardSchemaV1): RepairResult<unknown> {
   const parsed = toParsed(input);
   if ("ok" in parsed) return parsed;
   if (!schema) return ok(parsed.value, parsed.repaired);
@@ -79,23 +79,23 @@ export function heal(input: string, schema?: StandardSchemaV1): HealResult<unkno
   if (result instanceof Promise) {
     return fail({
       code: "async_schema",
-      message: "Schema validation is asynchronous; use healAsync() instead",
+      message: "Schema validation is asynchronous; use repairJsonAsync() instead",
     });
   }
   if (result.issues) return validationFailure(result.issues);
   return ok(result.value, parsed.repaired);
 }
 
-/** Async counterpart of {@link heal}, for schemas that validate asynchronously. */
-export async function healAsync(input: string): Promise<HealResult<unknown>>;
-export async function healAsync<Schema extends StandardSchemaV1>(
+/** Async counterpart of {@link repairJson}, for schemas that validate asynchronously. */
+export async function repairJsonAsync(input: string): Promise<RepairResult<unknown>>;
+export async function repairJsonAsync<Schema extends StandardSchemaV1>(
   input: string,
   schema: Schema,
-): Promise<HealResult<StandardSchemaV1.InferOutput<Schema>>>;
-export async function healAsync(
+): Promise<RepairResult<StandardSchemaV1.InferOutput<Schema>>>;
+export async function repairJsonAsync(
   input: string,
   schema?: StandardSchemaV1,
-): Promise<HealResult<unknown>> {
+): Promise<RepairResult<unknown>> {
   const parsed = toParsed(input);
   if ("ok" in parsed) return parsed;
   if (!schema) return ok(parsed.value, parsed.repaired);
@@ -105,36 +105,39 @@ export async function healAsync(
   return ok(result.value, parsed.repaired);
 }
 
-/** Like {@link heal}, but returns the value directly and throws {@link HealJsonError} on failure. */
-export function healOrThrow(input: string): unknown;
-export function healOrThrow<Schema extends StandardSchemaV1>(
+/** Like {@link repairJson}, but returns the value directly and throws {@link JsonRepairError} on failure. */
+export function repairJsonOrThrow(input: string): unknown;
+export function repairJsonOrThrow<Schema extends StandardSchemaV1>(
   input: string,
   schema: Schema,
 ): StandardSchemaV1.InferOutput<Schema>;
-export function healOrThrow(input: string, schema?: StandardSchemaV1): unknown {
-  const result = schema ? heal(input, schema) : heal(input);
-  if (!result.ok) throw new HealJsonError(result.error);
+export function repairJsonOrThrow(input: string, schema?: StandardSchemaV1): unknown {
+  const result = schema ? repairJson(input, schema) : repairJson(input);
+  if (!result.ok) throw new JsonRepairError(result.error);
   return result.value;
 }
 
-/** Async counterpart of {@link healOrThrow}. */
-export async function healOrThrowAsync(input: string): Promise<unknown>;
-export async function healOrThrowAsync<Schema extends StandardSchemaV1>(
+/** Async counterpart of {@link repairJsonOrThrow}. */
+export async function repairJsonOrThrowAsync(input: string): Promise<unknown>;
+export async function repairJsonOrThrowAsync<Schema extends StandardSchemaV1>(
   input: string,
   schema: Schema,
 ): Promise<StandardSchemaV1.InferOutput<Schema>>;
-export async function healOrThrowAsync(input: string, schema?: StandardSchemaV1): Promise<unknown> {
-  const result = schema ? await healAsync(input, schema) : await healAsync(input);
-  if (!result.ok) throw new HealJsonError(result.error);
+export async function repairJsonOrThrowAsync(
+  input: string,
+  schema?: StandardSchemaV1,
+): Promise<unknown> {
+  const result = schema ? await repairJsonAsync(input, schema) : await repairJsonAsync(input);
+  if (!result.ok) throw new JsonRepairError(result.error);
   return result.value;
 }
 
 /**
- * Repair messy JSON and return it as a canonical, valid JSON string.
- * Throws {@link HealJsonError} if nothing parseable is found.
+ * Repair broken JSON and return it as a canonical, valid JSON string.
+ * Throws {@link JsonRepairError} if nothing parseable is found.
  */
-export function repair(input: string): string {
+export function repairToString(input: string): string {
   const parsed = toParsed(input);
-  if ("ok" in parsed) throw new HealJsonError(parsed.error);
+  if ("ok" in parsed) throw new JsonRepairError(parsed.error);
   return JSON.stringify(parsed.value);
 }

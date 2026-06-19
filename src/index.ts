@@ -1,17 +1,17 @@
-export {
-  heal,
-  healAsync,
-  healOrThrow,
-  healOrThrowAsync,
-  repair,
-} from "./heal.js";
 export { tolerantParse } from "./parser.js";
+export {
+  repairJson,
+  repairJsonAsync,
+  repairJsonOrThrow,
+  repairJsonOrThrowAsync,
+  repairToString,
+} from "./repair.js";
 export type { StandardSchemaV1 } from "./standard-schema.js";
 export type {
-  HealErr,
-  HealError,
-  HealErrorCode,
-  HealOk,
-  HealResult,
+  RepairErr,
+  RepairError,
+  RepairErrorCode,
+  RepairOk,
+  RepairResult,
 } from "./types.js";
-export { HealJsonError } from "./types.js";
+export { JsonRepairError } from "./types.js";

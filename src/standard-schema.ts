@@ -1,7 +1,7 @@
 /**
  * Minimal, inlined copy of the Standard Schema v1 spec (https://standardschema.dev).
  *
- * Vendored as types only so `heal-json` stays zero-dependency while still
+ * Vendored as types only so `llm-json-repair` stays zero-dependency while still
  * accepting any validator that implements the spec (Zod, Valibot, ArkType, …).
  */
 export interface StandardSchemaV1<Input = unknown, Output = Input> {
