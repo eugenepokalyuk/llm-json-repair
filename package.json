@@ -1,6 +1,6 @@
 {
   "name": "llm-json-repair",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Repair and parse broken JSON from LLM output (OpenAI, Claude, …) — fixes code fences, trailing commas, and truncated streams, then validates against your schema. Type-safe, zero-dependency, Standard Schema compatible",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -12,6 +12,9 @@
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
     }
+  },
+  "bin": {
+    "llm-json-repair": "./dist/cli.js"
   },
   "files": [
     "dist"
@@ -66,6 +69,7 @@
   "homepage": "https://github.com/eugenepokalyuk/llm-json-repair#readme",
   "devDependencies": {
     "@biomejs/biome": "^2.5.0",
+    "@types/node": "^22.19.21",
     "@vitest/coverage-v8": "^4.1.9",
     "tsup": "^8.5.1",
     "typescript": "^6.0.3",
