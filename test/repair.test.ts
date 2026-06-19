@@ -13,7 +13,12 @@ import {
 describe("repairJson — clean input", () => {
   it("parses already-valid JSON and reports repaired=false", () => {
     const r = repairJson('{"name":"Ada","age":36}');
-    expect(r).toEqual({ ok: true, repaired: false, value: { name: "Ada", age: 36 } });
+    expect(r).toEqual({
+      ok: true,
+      repaired: false,
+      repairs: [],
+      value: { name: "Ada", age: 36 },
+    });
   });
 
   it("parses valid arrays and scalars", () => {
@@ -126,6 +131,48 @@ describe("repairJson — repairs", () => {
         users: [{ name: "Ada", roles: ["admin"] }, { name: "Bob" }],
       },
     });
+  });
+});
+
+describe("repairJson — repair events", () => {
+  const kinds = (r: ReturnType<typeof repairJson>) => (r.ok ? r.repairs.map((e) => e.kind) : []);
+
+  it("reports an empty list for already-valid JSON", () => {
+    const r = repairJson('{"a":1}');
+    expect(r).toMatchObject({ ok: true, repaired: false, repairs: [] });
+  });
+
+  it("reports a code_fence repair", () => {
+    expect(kinds(repairJson('```json\n{"a":1}\n```'))).toContain("code_fence");
+  });
+
+  it("reports trailing/leading commas and unquoted keys", () => {
+    const k = kinds(repairJson("{a:1,,b:2,}"));
+    expect(k).toContain("unquoted_key");
+    expect(k).toContain("leading_comma");
+    expect(k).toContain("trailing_comma");
+  });
+
+  it("reports non-standard quotes", () => {
+    expect(kinds(repairJson("{'a':'b'}"))).toContain("non_standard_quotes");
+  });
+
+  it("reports truncation repairs with closed_string / closed_object", () => {
+    const k = kinds(repairJson('{"note":"cut off'));
+    expect(k).toContain("closed_string");
+    expect(k).toContain("closed_object");
+  });
+
+  it("reports surrounding prose being dropped", () => {
+    expect(kinds(repairJson('Here you go: {"a":1}'))).toContain("surrounding_prose");
+  });
+
+  it("carries an index for each repair", () => {
+    const r = repairJson('{"note":"cut off');
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      for (const e of r.repairs) expect(typeof e.index).toBe("number");
+    }
   });
 });
 

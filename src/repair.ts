@@ -1,9 +1,10 @@
-import { tolerantParse } from "./parser.js";
+import { tolerantParseDetailed } from "./parser.js";
 import type { StandardSchemaV1 } from "./standard-schema.js";
 import {
   JsonRepairError,
   type RepairErr,
   type RepairError,
+  type RepairEvent,
   type RepairOptions,
   type RepairResult,
 } from "./types.js";
@@ -13,7 +14,10 @@ class EmptyInputError extends Error {}
 interface Parsed {
   value: unknown;
   repaired: boolean;
+  repairs: ReadonlyArray<RepairEvent>;
 }
+
+const NO_REPAIRS: ReadonlyArray<RepairEvent> = [];
 
 /**
  * The optional second argument may be a Standard Schema validator or a plain
@@ -36,7 +40,7 @@ function normalizeArgs(
 function toValue(input: string, options?: RepairOptions): Parsed {
   if (typeof input !== "string") {
     // Be forgiving: if someone hands us an already-parsed value, pass it through.
-    return { value: input, repaired: false };
+    return { value: input, repaired: false, repairs: NO_REPAIRS };
   }
   if (input.trim().length === 0) {
     throw new EmptyInputError("Input is empty");
@@ -50,17 +54,19 @@ function toValue(input: string, options?: RepairOptions): Parsed {
       JSON.parse(input);
       repaired = false;
     } catch {}
-    return { value: tolerantParse(input, options), repaired };
+    const detailed = tolerantParseDetailed(input, options);
+    return { value: detailed.value, repaired, repairs: detailed.repairs };
   }
   try {
-    return { value: JSON.parse(input), repaired: false };
+    return { value: JSON.parse(input), repaired: false, repairs: NO_REPAIRS };
   } catch {
-    return { value: tolerantParse(input, options), repaired: true };
+    const detailed = tolerantParseDetailed(input, options);
+    return { value: detailed.value, repaired: true, repairs: detailed.repairs };
   }
 }
 
-function ok<T>(value: T, repaired: boolean): RepairResult<T> {
-  return { ok: true, value, repaired };
+function ok<T>(value: T, repaired: boolean, repairs: ReadonlyArray<RepairEvent>): RepairResult<T> {
+  return { ok: true, value, repaired, repairs };
 }
 
 function fail(error: RepairError): RepairErr {
@@ -114,7 +120,7 @@ export function repairJson(
   const { schema, options } = normalizeArgs(schemaOrOptions, maybeOptions);
   const parsed = toParsed(input, options);
   if ("ok" in parsed) return parsed;
-  if (!schema) return ok(parsed.value, parsed.repaired);
+  if (!schema) return ok(parsed.value, parsed.repaired, parsed.repairs);
 
   const result = schema["~standard"].validate(parsed.value);
   if (result instanceof Promise) {
@@ -124,7 +130,7 @@ export function repairJson(
     });
   }
   if (result.issues) return validationFailure(result.issues);
-  return ok(result.value, parsed.repaired);
+  return ok(result.value, parsed.repaired, parsed.repairs);
 }
 
 /** Async counterpart of {@link repairJson}, for schemas that validate asynchronously. */
@@ -145,11 +151,11 @@ export async function repairJsonAsync(
   const { schema, options } = normalizeArgs(schemaOrOptions, maybeOptions);
   const parsed = toParsed(input, options);
   if ("ok" in parsed) return parsed;
-  if (!schema) return ok(parsed.value, parsed.repaired);
+  if (!schema) return ok(parsed.value, parsed.repaired, parsed.repairs);
 
   const result = await schema["~standard"].validate(parsed.value);
   if (result.issues) return validationFailure(result.issues);
-  return ok(result.value, parsed.repaired);
+  return ok(result.value, parsed.repaired, parsed.repairs);
 }
 
 /** Like {@link repairJson}, but returns the value directly and throws {@link JsonRepairError} on failure. */

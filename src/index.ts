@@ -12,6 +12,8 @@ export type {
   RepairErr,
   RepairError,
   RepairErrorCode,
+  RepairEvent,
+  RepairKind,
   RepairOk,
   RepairOptions,
   RepairResult,

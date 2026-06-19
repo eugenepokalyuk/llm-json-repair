@@ -39,6 +39,26 @@ export interface RepairStream<T> {
   readonly buffer: string;
 }
 
+/** A single repair the parser applied, for logging and quality metrics. */
+export type RepairKind =
+  | "code_fence" // stripped a markdown ``` fence
+  | "surrounding_prose" // dropped text before the JSON value
+  | "comment" // removed a // or /* */ comment
+  | "leading_comma" // dropped a stray/leading comma
+  | "trailing_comma" // dropped a trailing comma
+  | "unquoted_key" // quoted an unquoted object key
+  | "non_standard_quotes" // normalized single/smart/backtick quotes
+  | "bareword_string" // kept an unquoted bareword as a string
+  | "closed_string" // closed a truncated string
+  | "closed_object" // closed a truncated object
+  | "closed_array"; // closed a truncated array
+
+export interface RepairEvent {
+  readonly kind: RepairKind;
+  /** Offset into the parsed content (after fence-stripping) where it happened. */
+  readonly index?: number;
+}
+
 export interface RepairOk<T> {
   readonly ok: true;
   /** The parsed (and schema-validated, if a schema was given) value. */
@@ -48,6 +68,12 @@ export interface RepairOk<T> {
    * to be repaired (fences stripped, quotes fixed, truncation closed, …).
    */
   readonly repaired: boolean;
+  /**
+   * The specific repairs that were applied, in order. Empty when the input was
+   * already valid JSON. Best-effort: `repaired` may be `true` with an empty
+   * list if a repair fell outside the categorized kinds.
+   */
+  readonly repairs: ReadonlyArray<RepairEvent>;
 }
 
 export interface RepairErr {

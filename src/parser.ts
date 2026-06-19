@@ -12,6 +12,8 @@
  *  - Truncated output (unterminated strings / unclosed brackets get closed)
  */
 
+import type { RepairEvent, RepairKind } from "./types.js";
+
 const QUOTE_PAIRS: Record<string, string> = {
   '"': '"',
   "'": "'",
@@ -131,12 +133,17 @@ class TolerantParser {
   private readonly len: number;
   private readonly maxDepth: number;
   private readonly bigint: boolean;
+  readonly repairs: RepairEvent[] = [];
 
   constructor(source: string, options: ParseOptions = {}) {
     this.s = source;
     this.len = source.length;
     this.maxDepth = options.maxDepth ?? DEFAULT_MAX_DEPTH;
     this.bigint = options.bigint ?? false;
+  }
+
+  private add(kind: RepairKind, index = this.i): void {
+    this.repairs.push({ kind, index });
   }
 
   private enter(): void {
@@ -147,9 +154,10 @@ class TolerantParser {
 
   parse(): unknown {
     const start = this.findStructStart();
-    if (start >= 0) {
+    if (start > 0) {
+      this.add("surrounding_prose", 0);
       this.i = start;
-    } else {
+    } else if (start < 0) {
       this.skipWs();
     }
     if (this.i >= this.len) {
@@ -173,9 +181,11 @@ class TolerantParser {
       if (WHITESPACE.has(c)) {
         this.i++;
       } else if (c === "/" && this.s[this.i + 1] === "/") {
+        this.add("comment");
         this.i += 2;
         while (this.i < this.len && this.s[this.i] !== "\n") this.i++;
       } else if (c === "/" && this.s[this.i + 1] === "*") {
+        this.add("comment");
         this.i += 2;
         while (this.i < this.len && !(this.s[this.i] === "*" && this.s[this.i + 1] === "/")) {
           this.i++;
@@ -207,24 +217,34 @@ class TolerantParser {
   }
 
   private parseObjectBody(): Record<string, unknown> {
+    const openIndex = this.i;
     this.i++; // consume "{"
     const obj: Record<string, unknown> = {};
+    let closed = false;
     while (this.i < this.len) {
       this.skipWs();
       const c = this.s[this.i];
       if (c === undefined) break; // truncated
       if (c === "}") {
         this.i++;
+        closed = true;
         break;
       }
       if (c === ",") {
         // stray / leading comma
+        this.add("leading_comma");
         this.i++;
         continue;
       }
       const before = this.i;
 
-      const key = isOpenQuote(c) ? this.parseString() : this.parseUnquotedKey();
+      let key: string;
+      if (isOpenQuote(c)) {
+        key = this.parseString();
+      } else {
+        this.add("unquoted_key");
+        key = this.parseUnquotedKey();
+      }
 
       this.skipWs();
       if (this.s[this.i] === ":") this.i++;
@@ -242,10 +262,12 @@ class TolerantParser {
       const sep = this.s[this.i];
       if (sep === ",") {
         this.i++;
+        if (this.peekNonWs() === "}") this.add("trailing_comma");
         continue;
       }
       if (sep === "}") {
         this.i++;
+        closed = true;
         break;
       }
       if (sep === undefined) break; // truncated
@@ -253,7 +275,15 @@ class TolerantParser {
       // Nothing we recognize as a separator — guard against an infinite loop.
       if (this.i === before) this.i++;
     }
+    if (!closed) this.add("closed_object", openIndex);
     return obj;
+  }
+
+  /** The next non-whitespace character without consuming it. */
+  private peekNonWs(): string | undefined {
+    let j = this.i;
+    while (j < this.len && WHITESPACE.has(this.s[j])) j++;
+    return this.s[j];
   }
 
   private parseArray(): unknown[] {
@@ -266,17 +296,21 @@ class TolerantParser {
   }
 
   private parseArrayBody(): unknown[] {
+    const openIndex = this.i;
     this.i++; // consume "["
     const arr: unknown[] = [];
+    let closed = false;
     while (this.i < this.len) {
       this.skipWs();
       const c = this.s[this.i];
       if (c === undefined) break; // truncated
       if (c === "]") {
         this.i++;
+        closed = true;
         break;
       }
       if (c === ",") {
+        this.add("leading_comma");
         this.i++;
         continue;
       }
@@ -288,22 +322,26 @@ class TolerantParser {
       const sep = this.s[this.i];
       if (sep === ",") {
         this.i++;
+        if (this.peekNonWs() === "]") this.add("trailing_comma");
         continue;
       }
       if (sep === "]") {
         this.i++;
+        closed = true;
         break;
       }
       if (sep === undefined) break;
 
       if (this.i === before) this.i++;
     }
+    if (!closed) this.add("closed_array", openIndex);
     return arr;
   }
 
   private parseString(): string {
     const open = this.s[this.i];
     const close = QUOTE_PAIRS[open] ?? open;
+    if (open !== '"') this.add("non_standard_quotes");
     this.i++;
     let out = "";
     while (this.i < this.len) {
@@ -336,7 +374,8 @@ class TolerantParser {
       out += c;
       this.i++;
     }
-    return out; // unterminated (truncated) string
+    this.add("closed_string"); // unterminated (truncated) string
+    return out;
   }
 
   private parseUnquotedKey(): string {
@@ -367,20 +406,25 @@ class TolerantParser {
       }
       this.i++;
     }
-    return interpretLiteral(this.s.slice(start, this.i).trim(), this.bigint);
+    const raw = this.s.slice(start, this.i).trim();
+    const value = interpretLiteral(raw, this.bigint);
+    if (raw !== "" && typeof value === "string" && value === raw) {
+      this.add("bareword_string", start);
+    }
+    return value;
   }
 }
 
 /** Pull the content out of a markdown code fence, if the input is wrapped in one. */
-function stripFences(input: string): string {
+function stripFences(input: string): { content: string; stripped: boolean } {
   const closed = input.match(/```[a-zA-Z0-9]*[ \t]*\r?\n?([\s\S]*?)```/);
-  if (closed?.[1] && closed[1].trim().length > 0) return closed[1];
+  if (closed?.[1] && closed[1].trim().length > 0) return { content: closed[1], stripped: true };
 
   // Unclosed fence (common with truncated output): ```json\n{ …
   const open = input.match(/```[a-zA-Z0-9]*[ \t]*\r?\n?([\s\S]*)$/);
-  if (open?.[1] && open[1].trim().length > 0) return open[1];
+  if (open?.[1] && open[1].trim().length > 0) return { content: open[1], stripped: true };
 
-  return input;
+  return { content: input, stripped: false };
 }
 
 /** Options accepted by the low-level {@link tolerantParse}. */
@@ -389,11 +433,31 @@ export interface ParseOptions {
   readonly bigint?: boolean;
 }
 
+/** Parsed value plus the list of repairs that produced it. */
+export interface DetailedParse {
+  value: unknown;
+  repairs: RepairEvent[];
+}
+
+/**
+ * Parse messy, almost-JSON text and report which repairs were applied. Throws
+ * {@link SyntaxError} only when no JSON value can be found at all.
+ */
+export function tolerantParseDetailed(input: string, options?: ParseOptions): DetailedParse {
+  const { content, stripped } = stripFences(input);
+  const parser = new TolerantParser(content, options);
+  const value = parser.parse();
+  const repairs = stripped
+    ? [{ kind: "code_fence" as const, index: 0 }, ...parser.repairs]
+    : parser.repairs;
+  return { value, repairs };
+}
+
 /**
  * Parse messy, almost-JSON text into a JavaScript value, repairing common
  * problems along the way. Throws {@link SyntaxError} only when no JSON value
  * can be found at all.
  */
 export function tolerantParse(input: string, options?: ParseOptions): unknown {
-  return new TolerantParser(stripFences(input), options).parse();
+  return tolerantParseDetailed(input, options).value;
 }
