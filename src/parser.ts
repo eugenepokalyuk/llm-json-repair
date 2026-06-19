@@ -41,6 +41,26 @@ function isOpenQuote(c: string | undefined): c is string {
   return c !== undefined && c in QUOTE_PAIRS;
 }
 
+/**
+ * Assign `key` on `obj` as an own property, matching `JSON.parse` semantics.
+ *
+ * A plain `obj["__proto__"] = value` would mutate the object's prototype
+ * instead of creating an own `__proto__` key, silently dropping the data (and
+ * opening a prototype-pollution hole). `Object.defineProperty` sidesteps both.
+ */
+function assignKey(obj: Record<string, unknown>, key: string, value: unknown): void {
+  if (key === "__proto__") {
+    Object.defineProperty(obj, key, {
+      value,
+      writable: true,
+      enumerable: true,
+      configurable: true,
+    });
+  } else {
+    obj[key] = value;
+  }
+}
+
 function interpretLiteral(raw: string): unknown {
   if (raw === "") return null;
   switch (raw) {
@@ -159,11 +179,11 @@ class TolerantParser {
 
       if (this.i >= this.len) {
         // truncated right after the key
-        obj[key] = null;
+        assignKey(obj, key, null);
         break;
       }
 
-      obj[key] = this.parseValue();
+      assignKey(obj, key, this.parseValue());
       this.skipWs();
 
       const sep = this.s[this.i];

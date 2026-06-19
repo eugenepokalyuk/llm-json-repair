@@ -90,6 +90,19 @@ describe("repairJson — repairs", () => {
     });
   });
 
+  it("keeps a __proto__ key as own data without polluting the prototype", () => {
+    const r = repairJson('{ "__proto__": { "polluted": true }, "safe": 1 }');
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      const value = r.value as Record<string, unknown>;
+      // The key is preserved as own data (matching JSON.parse)…
+      expect(Object.hasOwn(value, "__proto__")).toBe(true);
+      expect(value.safe).toBe(1);
+      // …and nothing leaks onto Object.prototype.
+      expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+    }
+  });
+
   it("handles nested mess", () => {
     const input = "```\n{users: [{name: 'Ada', roles: ['admin',]}, {name: 'Bob',}],}\n```";
     expect(repairJson(input)).toMatchObject({
