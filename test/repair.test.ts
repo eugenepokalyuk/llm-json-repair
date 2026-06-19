@@ -114,6 +114,22 @@ describe("repairJson — repairs", () => {
   });
 });
 
+describe("repairJson — depth", () => {
+  it("parses reasonably deep nesting without issue", () => {
+    const depth = 100;
+    const input = "[".repeat(depth) + "]".repeat(depth);
+    const r = repairJson(input);
+    expect(r.ok).toBe(true);
+  });
+
+  it("rejects pathologically deep input as parse_error instead of crashing", () => {
+    const input = "[".repeat(100_000);
+    const r = repairJson(input);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error.code).toBe("parse_error");
+  });
+});
+
 describe("repairJson — errors", () => {
   it("reports empty input", () => {
     expect(repairJson("   ")).toEqual({

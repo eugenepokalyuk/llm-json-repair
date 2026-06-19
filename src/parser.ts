@@ -91,14 +91,39 @@ function interpretLiteral(raw: string): unknown {
   return raw;
 }
 
+/**
+ * Default nesting limit. The parser is recursive-descent, so without a bound a
+ * pathologically nested input (e.g. `[[[[…` thousands deep) overflows the call
+ * stack with an opaque `RangeError`. 512 is far beyond any realistic LLM
+ * payload while staying well clear of the stack ceiling.
+ */
+export const DEFAULT_MAX_DEPTH = 512;
+
+/** Thrown when input nests deeper than the configured `maxDepth`. */
+export class MaxDepthError extends SyntaxError {
+  constructor(maxDepth: number) {
+    super(`Maximum nesting depth of ${maxDepth} exceeded`);
+    this.name = "MaxDepthError";
+  }
+}
+
 class TolerantParser {
   private i = 0;
+  private depth = 0;
   private readonly s: string;
   private readonly len: number;
+  private readonly maxDepth: number;
 
-  constructor(source: string) {
+  constructor(source: string, maxDepth = DEFAULT_MAX_DEPTH) {
     this.s = source;
     this.len = source.length;
+    this.maxDepth = maxDepth;
+  }
+
+  private enter(): void {
+    if (++this.depth > this.maxDepth) {
+      throw new MaxDepthError(this.maxDepth);
+    }
   }
 
   parse(): unknown {
@@ -154,6 +179,15 @@ class TolerantParser {
   }
 
   private parseObject(): Record<string, unknown> {
+    this.enter();
+    try {
+      return this.parseObjectBody();
+    } finally {
+      this.depth--;
+    }
+  }
+
+  private parseObjectBody(): Record<string, unknown> {
     this.i++; // consume "{"
     const obj: Record<string, unknown> = {};
     while (this.i < this.len) {
@@ -204,6 +238,15 @@ class TolerantParser {
   }
 
   private parseArray(): unknown[] {
+    this.enter();
+    try {
+      return this.parseArrayBody();
+    } finally {
+      this.depth--;
+    }
+  }
+
+  private parseArrayBody(): unknown[] {
     this.i++; // consume "["
     const arr: unknown[] = [];
     while (this.i < this.len) {

@@ -1,6 +1,6 @@
 {
   "name": "llm-json-repair",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Repair and parse broken JSON from LLM output (OpenAI, Claude, …) — fixes code fences, trailing commas, and truncated streams, then validates against your schema. Type-safe, zero-dependency, Standard Schema compatible",
   "type": "module",
   "main": "./dist/index.cjs",
