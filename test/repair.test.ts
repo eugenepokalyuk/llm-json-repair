@@ -90,6 +90,19 @@ describe("repairJson — repairs", () => {
     });
   });
 
+  it("parses real JSON numbers but does not coerce hex/octal/leading-zero forms", () => {
+    expect(repairJson("{a:42,b:-3.14,c:1e3,d:0}")).toMatchObject({
+      ok: true,
+      value: { a: 42, b: -3.14, c: 1e3, d: 0 },
+    });
+    // 0x1F / 007 are not valid JSON numbers — keep them verbatim as strings
+    // instead of silently producing 31 / 7.
+    expect(repairJson("{hex:0x1F,octalish:007}")).toMatchObject({
+      ok: true,
+      value: { hex: "0x1F", octalish: "007" },
+    });
+  });
+
   it("keeps a __proto__ key as own data without polluting the prototype", () => {
     const r = repairJson('{ "__proto__": { "polluted": true }, "safe": 1 }');
     expect(r.ok).toBe(true);

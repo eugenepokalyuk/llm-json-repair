@@ -61,6 +61,14 @@ function assignKey(obj: Record<string, unknown>, key: string, value: unknown): v
   }
 }
 
+/**
+ * Strict JSON number grammar. Deliberately *narrower* than `Number()`, which
+ * happily coerces `0x1F` → 31, `007` → 7 and `0b10` → 2. Anything outside this
+ * grammar is kept as a verbatim string rather than silently turned into a
+ * different value.
+ */
+const JSON_NUMBER = /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/;
+
 function interpretLiteral(raw: string): unknown {
   if (raw === "") return null;
   switch (raw) {
@@ -80,14 +88,14 @@ function interpretLiteral(raw: string): unknown {
     case "undefined":
     case "NaN":
     case "nan":
+    case "Infinity":
+    case "-Infinity":
+    case "infinity":
       return null;
   }
-  const num = Number(raw);
-  if (!Number.isNaN(num)) {
-    if (num === Number.POSITIVE_INFINITY || num === Number.NEGATIVE_INFINITY) return null;
-    return num;
-  }
-  // Unrecognized bareword: treat it as a string rather than failing.
+  if (JSON_NUMBER.test(raw)) return Number(raw);
+  // Unrecognized bareword (incl. hex/octal/leading-zero forms): keep the
+  // literal text rather than coercing it to a surprising number.
   return raw;
 }
 
