@@ -8,7 +8,13 @@ const built = existsSync(CLI);
 
 function run(input: string, args: string[] = []): { stdout: string; status: number } {
   try {
-    const stdout = execFileSync("node", [CLI, ...args], { input, encoding: "utf8" });
+    // Pipe stderr (don't inherit) so the CLI's error output for the
+    // expected-failure cases doesn't leak into the test runner's console.
+    const stdout = execFileSync("node", [CLI, ...args], {
+      input,
+      encoding: "utf8",
+      stdio: ["pipe", "pipe", "pipe"],
+    });
     return { stdout, status: 0 };
   } catch (err) {
     const e = err as { stdout?: string; status?: number };

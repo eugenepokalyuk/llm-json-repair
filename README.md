@@ -50,8 +50,12 @@ const result = repairJson(raw);
 if (result.ok) {
   console.log(result.value);    // { name: "Ada", admin: true }
   console.log(result.repaired); // true — input wasn't clean JSON
+  console.log(result.repairs);  // [{ kind: "code_fence" }, { kind: "unquoted_key" }, …]
 }
 ```
+
+Working with a streaming model? Jump to [Streaming](#streaming). Calling it from
+a shell? There's a [CLI](#cli).
 
 ## `repairJson(input, schema?, options?)`
 
@@ -101,6 +105,18 @@ type RepairErrorCode = "empty_input" | "parse_error" | "validation_error" | "asy
 | `{"a":True,"b":None}` | `{ a: true, b: null }` |
 | `{"a":1,"b":[1,2,3` (truncated) | `{ a: 1, b: [1, 2, 3] }` |
 | `// comment` + `/* block */` | stripped |
+
+### Safety & correctness
+
+The repairer is built to be predictable on hostile or sloppy input:
+
+- **No prototype pollution.** A `"__proto__"` key is kept as an own property
+  (exactly like `JSON.parse`), never merged into the prototype chain.
+- **Bounded recursion.** Deeply nested input fails with `parse_error` at
+  [`maxDepth`](#options) (default `512`) instead of overflowing the stack.
+- **Strict numbers.** Only valid JSON number syntax becomes a number — `0x1F`
+  and `007` are kept verbatim as strings rather than silently turning into
+  `31` / `7`. Opt into [`bigint`](#options) to keep large integers exact.
 
 ## Async schemas
 
